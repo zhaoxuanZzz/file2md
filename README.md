@@ -1,10 +1,10 @@
-# Doc2MD 文档转换服务
+# File2MD 文档转换服务
 
 基于 FastAPI 和 Docling 的文档转换服务，支持将多种文档格式（PDF, DOCX, PPTX, XLSX, HTML）转换为 Markdown 格式，并支持从 URL 直接转换。
 
 ## 项目概述
 
-Doc2MD 是一个高性能的文档转换服务，使用 IBM 的 Docling 库作为核心转换引擎，提供 RESTful API 接口，支持文件上传和 URL 下载两种方式将文档转换为 Markdown 格式。
+File2MD 是一个高性能的文档转换服务，使用 IBM 的 Docling 库作为核心转换引擎，提供 RESTful API 接口，支持文件上传和 URL 下载两种方式将文档转换为 Markdown 格式。
 
 ## 技术栈
 
@@ -19,16 +19,16 @@ Doc2MD 是一个高性能的文档转换服务，使用 IBM 的 Docling 库作�
 ### Conda 虚拟环境使用说明
 
 #### 环境信息
-- **环境名称**: doc2md
+- **环境名称**: file2md
 - **Python版本**: 3.13.9
-- **环境路径**: `C:\Users\50424\.conda\envs\doc2md`
+- **环境路径**: `C:\Users\50424\.conda\envs\file2md`
 
 #### 激活环境
 
 在Windows PowerShell或命令提示符中运行：
 
 ```bash
-conda activate doc2md
+conda activate file2md
 ```
 
 #### 安装项目依赖
@@ -57,13 +57,13 @@ conda deactivate
 #### 删除环境（如果需要）
 
 ```bash
-conda env remove -n doc2md
+conda env remove -n file2md
 ```
 
 ## 项目结构
 
 ```
-doc2md/
+file2md/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py              # FastAPI应用入口
@@ -133,7 +133,7 @@ doc2md/
 ### 1. 创建并激活虚拟环境
 
 ```bash
-conda activate doc2md
+conda activate file2md
 ```
 
 ### 2. 安装依赖
@@ -206,7 +206,7 @@ curl -X GET "http://localhost:8000/api/v1/supported-formats"
 
 主要配置项在 `app/core/config.py` 中定义，可以通过环境变量或 `.env` 文件进行配置：
 
-- `APP_NAME`: 应用名称（默认: Doc2MD）
+- `APP_NAME`: 应用名称（默认: File2MD）
 - `APP_VERSION`: 应用版本（默认: 1.0.0）
 - `DEBUG`: 调试模式（默认: False）
 - `HOST`: 服务器地址（默认: 0.0.0.0）

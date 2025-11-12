@@ -7,10 +7,17 @@ import tempfile
 import os
 import time
 import platform
+import logging
+from typing import Optional
 
 from docling.document_converter import DocumentConverter as DoclingConverter
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+# 全局转换器实例（单例模式）
+_global_converter: Optional['DocumentConverter'] = None
 
 
 class DocumentConverter:
@@ -24,30 +31,81 @@ class DocumentConverter:
         """
         device = getattr(settings, 'DOCLING_DEVICE', 'cpu')
         
+        # 验证CUDA是否可用
+        cuda_available = False
+        if device.startswith('cuda'):
+            try:
+                import torch
+                cuda_available = torch.cuda.is_available()
+                if cuda_available:
+                    logger.info(f"CUDA可用，GPU设备: {torch.cuda.get_device_name(0)}")
+                else:
+                    logger.warning("配置了CUDA设备，但CUDA不可用，将使用CPU")
+                    device = 'cpu'
+            except ImportError:
+                logger.warning("PyTorch未安装，无法使用GPU，将使用CPU")
+                device = 'cpu'
+        
+        self.device = device
+        logger.info(f"初始化Docling转换器，使用设备: {device}")
+        
         # 尝试多种方式配置设备
         converter_config = {}
         
-        # 方式1: 尝试通过 pipeline_options 配置设备
+        # 方式1: 尝试通过 pipeline_options 配置设备（推荐方式）
         try:
             from docling.datamodel.pipeline_options import PipelineOptions
             pipeline_options = PipelineOptions()
+            
+            # 设置设备
             if hasattr(pipeline_options, 'device'):
                 pipeline_options.device = device
+                logger.info(f"通过PipelineOptions设置设备: {device}")
+            
+            # 尝试配置OCR相关选项以充分利用GPU
+            # Docling主要在OCR和表格识别中使用GPU
+            if hasattr(pipeline_options, 'do_ocr') and device.startswith('cuda'):
+                # 确保启用OCR以使用GPU
+                pipeline_options.do_ocr = True
+                logger.info("已启用OCR以充分利用GPU")
+            
             converter_config['pipeline_options'] = pipeline_options
-        except (ImportError, AttributeError):
-            pass
+        except (ImportError, AttributeError) as e:
+            logger.debug(f"无法通过PipelineOptions配置设备: {e}")
         
         # 方式2: 尝试直接传递 device 参数
-        if 'pipeline_options' not in converter_config:
+        if 'pipeline_options' not in converter_config or not converter_config.get('pipeline_options'):
             converter_config['device'] = device
+            logger.info(f"直接传递device参数: {device}")
         
         # 初始化转换器
         try:
             self.converter = DoclingConverter(**converter_config)
-        except (TypeError, ValueError):
+            logger.info("Docling转换器初始化成功")
+            
+            # 验证实际使用的设备
+            self._verify_device_usage()
+        except (TypeError, ValueError) as e:
+            logger.warning(f"使用参数初始化失败，尝试默认初始化: {e}")
             # 如果参数不支持，使用默认初始化
             # 某些版本的 docling 可能不支持这些参数
             self.converter = DoclingConverter()
+            logger.info("使用默认配置初始化Docling转换器")
+    
+    def _verify_device_usage(self):
+        """验证转换器实际使用的设备"""
+        try:
+            # 尝试检查转换器内部使用的设备
+            if hasattr(self.converter, 'pipeline') and hasattr(self.converter.pipeline, 'device'):
+                actual_device = str(self.converter.pipeline.device)
+                logger.info(f"转换器实际使用的设备: {actual_device}")
+            elif hasattr(self.converter, '_device'):
+                actual_device = str(self.converter._device)
+                logger.info(f"转换器实际使用的设备: {actual_device}")
+            else:
+                logger.debug("无法确定转换器实际使用的设备")
+        except Exception as e:
+            logger.debug(f"验证设备使用情况时出错: {e}")
     
     async def convert_from_bytes(
         self, 
@@ -165,4 +223,20 @@ class DocumentConverter:
             file_path
         )
         return result
+
+
+def get_converter() -> DocumentConverter:
+    """
+    获取全局转换器实例（单例模式）
+    
+    第一次调用时会初始化转换器，后续调用返回同一个实例
+    这样可以避免每次请求都重新初始化，提高性能
+    
+    Returns:
+        DocumentConverter实例
+    """
+    global _global_converter
+    if _global_converter is None:
+        _global_converter = DocumentConverter()
+    return _global_converter
 

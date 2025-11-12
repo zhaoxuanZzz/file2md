@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     """应用配置"""
     
     # 应用信息
-    APP_NAME: str = "Doc2MD"
+    APP_NAME: str = "File2MD"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
     
@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     # Docling 配置
     # 设备类型: 'cpu' 或 'cuda' 或 'cuda:0' 等
     # 设置为 'cpu' 使用 CPU，设置为 'cuda' 或 'cuda:0' 使用 GPU
+    # 注意：Docling主要在OCR和表格识别等任务中使用GPU，文档解析的大部分工作仍在CPU上
+    # 因此即使配置了GPU，GPU占用率也可能较低，这是正常现象
     DOCLING_DEVICE: str = "cpu"
     
     class Config:
