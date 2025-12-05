@@ -1,6 +1,6 @@
 """
 文档转换核心逻辑
-使用Docling进行文档转换
+使用Docling进行文档转换，支持vLLM作为推理后端
 """
 import asyncio
 import tempfile
@@ -16,6 +16,50 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+
+def _create_vllm_model():
+    """
+    创建 vLLM 模型实例
+    
+    Returns:
+        VllmApiModel 实例，如果配置无效则返回 None
+    """
+    if not settings.VLLM_ENABLED:
+        return None
+    
+    if not settings.VLLM_API_BASE or not settings.VLLM_MODEL_NAME:
+        logger.warning("vLLM 已启用但配置不完整，需要设置 VLLM_API_BASE 和 VLLM_MODEL_NAME")
+        return None
+    
+    try:
+        from docling.datamodel.pipeline_options import VlmPipelineOptions
+        from docling_core.types.doc.labels import DocItemLabel
+        from docling.pipeline.vlm_pipeline import VlmPipeline
+        
+        # 尝试导入 vLLM API 模型
+        try:
+            from docling.models.vlm_models_api import VllmApiModel, VllmApiOptions
+        except ImportError:
+            logger.warning("无法导入 VllmApiModel，请确保 docling 版本支持 vLLM")
+            return None
+        
+        # 创建 vLLM API 选项
+        vllm_options = VllmApiOptions(
+            api_base=settings.VLLM_API_BASE,
+            model=settings.VLLM_MODEL_NAME,
+            api_key=settings.VLLM_API_KEY if settings.VLLM_API_KEY else None
+        )
+        
+        logger.info(f"vLLM 配置: API地址={settings.VLLM_API_BASE}, 模型={settings.VLLM_MODEL_NAME}")
+        return vllm_options
+        
+    except ImportError as e:
+        logger.warning(f"无法导入 vLLM 相关模块: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"创建 vLLM 模型时出错: {e}")
+        return None
+
 # 全局转换器实例（单例模式）
 _global_converter: Optional['DocumentConverter'] = None
 
@@ -28,6 +72,7 @@ class DocumentConverter:
         初始化转换器
         
         根据配置的设备类型（CPU/GPU）初始化 Docling 转换器
+        支持 vLLM 作为推理后端
         """
         device = getattr(settings, 'DOCLING_DEVICE', 'cpu')
         
@@ -52,6 +97,9 @@ class DocumentConverter:
         # 尝试多种方式配置设备
         converter_config = {}
         
+        # 检查是否启用 vLLM
+        vllm_options = _create_vllm_model()
+        
         # 方式1: 尝试通过 pipeline_options 配置设备（推荐方式）
         try:
             from docling.datamodel.pipeline_options import PipelineOptions
@@ -68,6 +116,27 @@ class DocumentConverter:
                 # 确保启用OCR以使用GPU
                 pipeline_options.do_ocr = True
                 logger.info("已启用OCR以充分利用GPU")
+            
+            # 如果启用了 vLLM，配置 VLM pipeline
+            if vllm_options is not None:
+                try:
+                    from docling.datamodel.pipeline_options import VlmPipelineOptions
+                    
+                    # 创建 VLM pipeline 选项
+                    vlm_pipeline_options = VlmPipelineOptions(
+                        vlm_options=vllm_options
+                    )
+                    
+                    # 设置到 pipeline_options
+                    if hasattr(pipeline_options, 'vlm_pipeline_options'):
+                        pipeline_options.vlm_pipeline_options = vlm_pipeline_options
+                        logger.info("已配置 vLLM pipeline 选项")
+                    else:
+                        logger.warning("当前 docling 版本不支持 vlm_pipeline_options")
+                except ImportError as e:
+                    logger.warning(f"无法导入 VlmPipelineOptions: {e}")
+                except Exception as e:
+                    logger.warning(f"配置 vLLM pipeline 时出错: {e}")
             
             converter_config['pipeline_options'] = pipeline_options
         except (ImportError, AttributeError) as e:
