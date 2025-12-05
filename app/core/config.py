@@ -39,6 +39,16 @@ class Settings(BaseSettings):
     # 因此即使配置了GPU，GPU占用率也可能较低，这是正常现象
     DOCLING_DEVICE: str = "cpu"
     
+    # vLLM 配置
+    # 是否启用 vLLM 作为推理后端
+    VLLM_ENABLED: bool = False
+    # vLLM 服务地址
+    VLLM_API_BASE: str = "http://localhost:8000/v1"
+    # vLLM 模型名称
+    VLLM_MODEL_NAME: str = ""
+    # vLLM API Key（如果需要认证）
+    VLLM_API_KEY: str = ""
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
